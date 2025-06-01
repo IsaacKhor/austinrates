@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Austin Electric Cost Calculator</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/3.0.1/plotly.min.js"></script>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #f5f5f5;
+            }
+            h1 {
+                color: #333;
+                text-align: center;
+            }
+            .chart-container {
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+            .info-box {
+                background: #e8f4f8;
+                border-left: 4px solid #2196f3;
+                padding: 15px;
+                margin: 20px 0;
+                border-radius: 4px;
+            }
+            .info-box h3 {
+                margin-top: 0;
+                color: #1976d2;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Austin Electric Cost Calculator</h1>
+
+        <div class="info-box">
+            <h3>Rate Structure</h3>
+            <ul>
+                <li>Fixed charge: $15/month</li>
+                <li>Regulatory charge: 5.13038¢/kWh</li>
+                <li>
+                    Energy supply charges:
+                    <ul>
+                        <li>0-300 kWh: 4.106¢/kWh</li>
+                        <li>301-900 kWh: 5.138¢/kWh</li>
+                        <li>901-2000 kWh: 7.525¢/kWh</li>
+                        <li>2001+ kWh: 10.884¢/kWh</li>
+                    </ul>
+                </li>
+                <li>City sales tax: 1% on the total</li>
+            </ul>
+        </div>
+
+        <div class="chart-container">
+            <div id="totalCostChart"></div>
+        </div>
+
+        <div class="chart-container">
+            <div id="centsPerKwhChart"></div>
+        </div>
+
+        <script>
+            // Rate structure
+            const fixedCharge = 15; // dollars
+            const regulatoryRate = 5.13038; // cents/kWh
+
+            // Tiered rates for energy supply (cents/kWh)
+            const tiers = [
+                { limit: 300, rate: 4.106 },
+                { limit: 900, rate: 5.138 },
+                { limit: 2000, rate: 7.525 },
+                { limit: Infinity, rate: 10.884 },
+            ];
+
+            // Calculate total cost for given kWh usage
+            function calculateTotalCost(kwh) {
+                if (kwh === 0) return fixedCharge * 1.01; // Apply 1% tax even on fixed charge
+
+                let energySupplyCost = 0;
+                let remainingKwh = kwh;
+                let previousLimit = 0;
+
+                for (const tier of tiers) {
+                    const tierKwh = Math.min(
+                        remainingKwh,
+                        tier.limit - previousLimit,
+                    );
+                    if (tierKwh > 0) {
+                        energySupplyCost += tierKwh * tier.rate;
+                        remainingKwh -= tierKwh;
+                    }
+                    previousLimit = tier.limit;
+                    if (remainingKwh === 0) break;
+                }
+
+                const regulatoryCost = kwh * regulatoryRate;
+                const totalCostCents = energySupplyCost + regulatoryCost;
+                const subtotal = fixedCharge + totalCostCents / 100;
+                const totalWithTax = subtotal * 1.01; // Apply 1% city sales tax
+
+                return totalWithTax;
+            }
+
+            // Generate data points
+            const kwhValues = [];
+            const totalCosts = [];
+            const centsPerKwh = [];
+
+            for (let kwh = 0; kwh <= 2500; kwh += 5) {
+                kwhValues.push(kwh);
+                const cost = calculateTotalCost(kwh);
+                totalCosts.push(cost);
+
+                // Calculate effective cents per kWh (avoid division by zero)
+                const effectiveRate = kwh > 0 ? (cost * 100) / kwh : 0;
+                centsPerKwh.push(effectiveRate);
+            }
+
+            // Create total cost chart
+            const totalCostTrace = {
+                x: kwhValues,
+                y: totalCosts,
+                type: "scatter",
+                mode: "lines",
+                name: "Total Cost",
+                line: {
+                    color: "#1976D2",
+                    width: 3,
+                },
+            };
+
+            const totalCostLayout = {
+                title: {
+                    text: "Total Monthly Electric Cost (including 1% city tax)",
+                    font: { size: 20 },
+                },
+                xaxis: {
+                    title: "Usage (kWh)",
+                    gridcolor: "#e0e0e0",
+                },
+                yaxis: {
+                    title: "Total Cost ($)",
+                    gridcolor: "#e0e0e0",
+                    tickformat: "$.2f",
+                },
+                hovermode: "x",
+                plot_bgcolor: "#fafafa",
+                paper_bgcolor: "white",
+            };
+
+            Plotly.newPlot(
+                "totalCostChart",
+                [totalCostTrace],
+                totalCostLayout,
+                { responsive: true },
+            );
+
+            // Create cents per kWh chart
+            const centsPerKwhTrace = {
+                x: kwhValues,
+                y: centsPerKwh,
+                type: "scatter",
+                mode: "lines",
+                name: "Effective Rate",
+                line: {
+                    color: "#f44336",
+                    width: 3,
+                },
+            };
+
+            const centsPerKwhLayout = {
+                title: {
+                    text: "Effective Cost per kWh",
+                    font: { size: 20 },
+                },
+                xaxis: {
+                    title: "Usage (kWh)",
+                    gridcolor: "#e0e0e0",
+                },
+                yaxis: {
+                    title: "Cents per kWh",
+                    gridcolor: "#e0e0e0",
+                    tickformat: ".2f",
+                },
+                hovermode: "x",
+                plot_bgcolor: "#fafafa",
+                paper_bgcolor: "white",
+            };
+
+            Plotly.newPlot(
+                "centsPerKwhChart",
+                [centsPerKwhTrace],
+                centsPerKwhLayout,
+                { responsive: true },
+            );
+        </script>
+    </body>
+</html>
